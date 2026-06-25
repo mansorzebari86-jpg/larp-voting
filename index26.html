@@ -1,0 +1,290 @@
+
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دەنگدانا پاراستی - لارپ</title>
+    
+    <!-- Firebase Libraries (سیستەمێ پاراستن و داتابەیسێ) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .voting-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h2 { color: #333; margin-bottom: 10px; }
+        p.description { color: #666; font-size: 14px; margin-bottom: 30px; }
+        
+        /* دوگمەیا جیمەیلی */
+        .login-btn {
+            background-color: #df4a32;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background 0.3s;
+            width: 100%;
+        }
+        .login-btn:hover { background-color: #c53721; }
+
+        .question { font-weight: bold; font-size: 18px; color: #2c3e50; margin-bottom: 20px; text-align: right; }
+        .options-group { display: flex; flex-direction: column; gap: 15px; margin-bottom: 30px; }
+        
+        .option-label {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .option-label:hover { background-color: #e8f4fd; border-color: #3498db; }
+        .option-label input[type="radio"] { margin-left: 15px; width: 20px; height: 20px; accent-color: #3498db; }
+        .option-text { font-size: 16px; color: #495057; }
+
+        .submit-btn {
+            width: 100%; background-color: #3498db; color: white; border: none;
+            padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px;
+            cursor: pointer; transition: background-color 0.3s ease;
+        }
+        .submit-btn:hover { background-color: #2980b9; }
+
+        /* پشکا ئەنجامان */
+        .result-item { margin-bottom: 20px; text-align: right; }
+        .result-info { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; color: #333; }
+        .progress-bar-bg { background-color: #e9ecef; border-radius: 8px; overflow: hidden; height: 20px; width: 100%; }
+        .progress-bar-fill { background-color: #2ecc71; height: 100%; width: 0%; transition: width 0.5s ease; }
+
+        /* دۆخێن بەشان */
+        .hidden { display: none !important; }
+        .loading { font-size: 16px; color: #888; }
+        
+        /* وێنەیێ پرۆفایلێ */
+        .user-profile { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .user-profile img { width: 40px; height: 40px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+    <div class="voting-container">
+        
+        <!-- ١. پشکا چاوەڕێبوونێ -->
+        <div id="loadingSection" class="loading">تکایە چاوەڕێبە... پشکنینا ئەکاونتی دهێتە کرن ⏳</div>
+
+        <!-- ٢. پشکا لۆگینێ (چوونەژوورێ) -->
+        <div id="loginSection" class="hidden">
+            <h2>سیستەمێ دەنگدانا پاراستی</h2>
+            <p class="description">بۆ ڕێگریگرتن ل دووبارە دەنگدانێ، تکایە ب ئەکاونتێ خۆ یێ جیمەیلێ بچۆ ژوورێ</p>
+            <button class="login-btn" onclick="loginWithGoogle()">
+                🔑 چوونەژوورێ ب ڕێکا Google
+            </button>
+        </div>
+
+        <!-- ٣. پشکا فۆرمی و دەنگدانێ -->
+        <div id="voteSection" class="hidden">
+            <div class="user-profile" id="userProfileInfo"></div>
+            <h2>بخێر هاتی ل سەر سێرڤەری</h2>
+            
+            <form id="votingForm">
+                <div class="question">بۆچوونا تە چییە بۆ سێرڤەرێ مە یێ لارپ یێ چەوایه؟</div>
+                <div class="options-group">
+                    <label class="option-label">
+                        <input type="radio" name="vote" value="excellent" required>
+                        <span class="option-text">گەلەک باشە 😍</span>
+                    </label>
+                    <label class="option-label">
+                        <input type="radio" name="vote" value="average">
+                        <span class="option-text">مامنەوەندە باشە 🙂</span>
+                    </label>
+                    <label class="option-label">
+                        <input type="radio" name="vote" value="bad">
+                        <span class="option-text">خرابە 🙁</span>
+                    </label>
+                </div>
+                <button type="submit" class="submit-btn">تۆمارکرنا دەنگی</button>
+            </form>
+        </div>
+
+        <!-- ٤. پشکا ئەنجامێن ڕاستەقینە -->
+        <div id="resultsSection" class="hidden">
+            <h2>📊 ئەنجامێن دەنگدانێ (گشتی)</h2>
+            <p class="description">تە دەنگێ خۆ داژەنە! ئەڤە ڕێژا ڕاستەقینە یا دەنگێن یاریزانانە:</p>
+
+            <div class="result-item">
+                <div class="result-info"><span>گەلەک باشە</span> <span id="pct-excellent">0%</span></div>
+                <div class="progress-bar-bg"><div id="bar-excellent" class="progress-bar-fill"></div></div>
+            </div>
+            <div class="result-item">
+                <div class="result-info"><span>مامنەوەندە باشە</span> <span id="pct-average">0%</span></div>
+                <div class="progress-bar-bg"><div id="bar-average" class="progress-bar-fill" style="background-color: #f1c40f;"></div></div>
+            </div>
+            <div class="result-item">
+                <div class="result-info"><span>خرابە</span> <span id="pct-bad">0%</span></div>
+                <div class="progress-bar-bg"><div id="bar-bad" class="progress-bar-fill" style="background-color: #e74c3c;"></div></div>
+            </div>
+            <p id="totalVotesText" style="margin-top: 20px; font-weight: bold; color: #555;">کۆما دەنگدەران: 0</p>
+        </div>
+
+    </div>
+
+    <script>
+        // ل ڤێرێ کۆدێ تە یێ فایربەیس هاتییە دانان ب دروستی
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_zlajqOlQenkzI_R9wI356okfUItB0Ng",
+            authDomain: "larp-voting.firebaseapp.com",
+            projectId: "larp-voting",
+            storageBucket: "larp-voting.firebasestorage.app",
+            messagingSenderId: "622445466472",
+            appId: "1:622445466472:web:71b9a05f3e83328b7a3cdd"
+        };
+
+        // دەستپێکرنا سێرڤەری
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        let currentUser = null;
+
+        // دۆزینەوا بارودۆخێ یاریزانی
+        auth.onAuthStateChanged(async (user) => {
+            document.getElementById('loadingSection').classList.add('hidden');
+            
+            if (user) {
+                currentUser = user;
+                // پشکنین کا پێشتر دەنگ دایە؟
+                try {
+                    const userDoc = await db.collection('voted_users').doc(user.uid).get();
+                    if (userDoc.exists) {
+                        showResults(); // ئەگەر دەنگ دابیت، ڕاستەوڕاست ئەنجامان نیشان بدە
+                    } else {
+                        // ئەگەر دەنگ نەدابیت، فۆرمی نیشان بدە
+                        document.getElementById('userProfileInfo').innerHTML = `
+                            <img src="${user.photoURL}" alt="Profile">
+                            <span>${user.displayName}</span>
+                        `;
+                        document.getElementById('voteSection').classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error("خەلەتی د خویندنا داتابەیسێ دا:", error);
+                    alert("ئاریشەیەک هەیە، تکایە داتابەیسێ خۆ د فایربەیس دا پشکنین بکە.");
+                }
+            } else {
+                // ئەگەر لۆگین نەببیت
+                document.getElementById('loginSection').classList.remove('hidden');
+                document.getElementById('voteSection').classList.add('hidden');
+                document.getElementById('resultsSection').classList.add('hidden');
+            }
+        });
+
+        // فرمانا لۆگینێ ب جیمەیلێ
+        function loginWithGoogle() {
+            auth.signInWithPopup(provider).catch(err => {
+                console.error(err);
+                alert("خەلەتیەک د لۆگینێ دا چێبوو: " + err.message);
+            });
+        }
+
+        // تۆمارکرنا دەنگی د داتابەیسێ دا
+        document.getElementById('votingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerText = "دهێتە تۆمارکرن...";
+
+            const selectedOption = document.querySelector('input[name="vote"]:checked').value;
+
+            try {
+                // ١. پاراستنا ئەکاونتی دا چ جاران نەشێت دەنگ بدەتەڤە
+                await db.collection('voted_users').doc(currentUser.uid).set({
+                    name: currentUser.displayName,
+                    email: currentUser.email,
+                    votedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    choice: selectedOption
+                });
+
+                // ٢. زێدەکرنا ژمارا دەنگان د کۆنتڕۆلا گشتی دا
+                const globalVotesRef = db.collection('global_stats').doc('votes');
+                const increment = firebase.firestore.FieldValue.increment(1);
+                
+                let updateData = {};
+                updateData[selectedOption] = increment;
+                await globalVotesRef.set(updateData, { merge: true });
+
+                showResults();
+            } catch (error) {
+                console.error("خەلەتی د هنارتنا دەنگێ تە دا:", error);
+                alert("دەنگێ تە نەهاتە تۆمارکرن، تکایە دوبارە تاقیبکەڤە.");
+                submitBtn.disabled = false;
+                submitBtn.innerText = "تۆمارکرنا دەنگی";
+            }
+        });
+
+        // حەسیبکرنا ڕێژا دەنگدانێ ژ داتابەیسێ ب شێوەیەکێ زیندوو (Live)
+        function showResults() {
+            document.getElementById('voteSection').classList.add('hidden');
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+
+            // خویندنا داتایان ژ سێرڤەری ل سەر دەمی
+            db.collection('global_stats').doc('votes').onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    const exc = data.excellent || 0;
+                    const avg = data.average || 0;
+                    const bad = data.bad || 0;
+                    const total = exc + avg + bad;
+
+                    const pctExc = total > 0 ? Math.round((exc / total) * 100) : 0;
+                    const pctAvg = total > 0 ? Math.round((avg / total) * 100) : 0;
+                    const pctBad = total > 0 ? Math.round((bad / total) * 100) : 0;
+
+                    // گوهۆڕینا گرافیکی ل سەر شاشێ
+                    document.getElementById('pct-excellent').innerText = pctExc + '%';
+                    document.getElementById('bar-excellent').style.width = pctExc + '%';
+
+                    document.getElementById('pct-average').innerText = pctAvg + '%';
+                    document.getElementById('bar-average').style.width = pctAvg + '%';
+
+                    document.getElementById('pct-bad').innerText = pctBad + '%';
+                    document.getElementById('bar-bad').style.width = pctBad + '%';
+                    
+                    document.getElementById('totalVotesText').innerText = `کۆما دەنگدەران: ${total}`;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
